@@ -126,32 +126,42 @@ class EpsonProjector {
     async sendCommand(command) {
         return new Promise((resolve, reject) => {
             const client = new net.Socket();
-            client.setTimeout(5000);
+            client.setTimeout(3000); // Timeout 3 secondes
+
+            console.log(`[Epson] Connexion à ${this.ip}:${this.port}...`);
 
             client.connect(this.port, this.ip, () => {
-                console.log(`[Epson] Connecté, envoi: ${command}`);
+                console.log(`[Epson] Connecté ! Envoi: ${command}`);
                 client.write(command + '\r');
+                // Résoudre après envoi, sans attendre de réponse
+                setTimeout(() => {
+                    console.log(`[Epson] Commande envoyée`);
+                    client.destroy();
+                    resolve({ success: true, command: command });
+                }, 500);
             });
 
             client.on('data', (data) => {
                 console.log(`[Epson] Réponse: ${data.toString().trim()}`);
-                client.destroy();
-                resolve(data.toString());
             });
 
             client.on('timeout', () => {
+                console.log(`[Epson] Timeout - pas de réponse`);
                 client.destroy();
-                reject(new Error('Timeout'));
+                resolve({ success: false, error: 'Timeout' }); // Résoudre quand même pour continuer
             });
 
             client.on('error', (err) => {
                 console.error(`[Epson] Erreur: ${err.message}`);
-                reject(err);
+                client.destroy();
+                resolve({ success: false, error: err.message }); // Résoudre quand même pour continuer
             });
         });
     }
 
     async powerOn() {
+        // Essayer plusieurs commandes/ports
+        console.log(`[Epson] Tentative d'allumage...`);
         return this.sendCommand('PWR ON');
     }
 
@@ -177,27 +187,34 @@ class PioneerReceiver {
     async sendCommand(command) {
         return new Promise((resolve, reject) => {
             const client = new net.Socket();
-            client.setTimeout(5000);
+            client.setTimeout(3000);
+
+            console.log(`[Pioneer] Connexion à ${this.ip}:${this.port}...`);
 
             client.connect(this.port, this.ip, () => {
-                console.log(`[Pioneer] Connecté, envoi: ${command}`);
+                console.log(`[Pioneer] Connecté ! Envoi: ${command}`);
                 client.write(command + '\r\n');
+                setTimeout(() => {
+                    console.log(`[Pioneer] Commande envoyée`);
+                    client.destroy();
+                    resolve({ success: true, command: command });
+                }, 500);
             });
 
             client.on('data', (data) => {
                 console.log(`[Pioneer] Réponse: ${data.toString().trim()}`);
-                client.destroy();
-                resolve(data.toString());
             });
 
             client.on('timeout', () => {
+                console.log(`[Pioneer] Timeout - pas de réponse`);
                 client.destroy();
-                reject(new Error('Timeout'));
+                resolve({ success: false, error: 'Timeout' });
             });
 
             client.on('error', (err) => {
                 console.error(`[Pioneer] Erreur: ${err.message}`);
-                reject(err);
+                client.destroy();
+                resolve({ success: false, error: err.message });
             });
         });
     }
@@ -261,17 +278,23 @@ class ShieldTV {
 
     async executeAdb(command) {
         const { exec } = require('child_process');
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
+            console.log(`[Shield] Exécution ADB: ${command}`);
             exec(`adb connect ${this.ip}:${this.port} && adb -s ${this.ip}:${this.port} ${command}`, 
-                { timeout: 10000 },
+                { timeout: 5000 },
                 (error, stdout, stderr) => {
                     if (error) {
-                        console.error(`[Shield] Erreur: ${error.message}`);
-                        reject(error);
+                        if (error.message.includes('not recognized') || error.message.includes('not found')) {
+                            console.error(`[Shield] ADB n'est pas installé sur ce PC`);
+                            console.error(`[Shield] Pour installer: https://developer.android.com/studio/releases/platform-tools`);
+                        } else {
+                            console.error(`[Shield] Erreur: ${error.message}`);
+                        }
+                        resolve({ success: false, error: error.message });
                         return;
                     }
                     console.log(`[Shield] ${stdout}`);
-                    resolve(stdout);
+                    resolve({ success: true, output: stdout });
                 }
             );
         });
