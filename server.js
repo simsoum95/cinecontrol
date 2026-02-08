@@ -19,31 +19,31 @@ const CONFIG = {
     },
     devices: {
         projector: {
-            name: 'Epson EH-TW9400',
-            ip: '192.168.1.100',      // ← MODIFIER avec l'IP du projecteur
+            name: 'Epson Home Cinema',
+            ip: '192.168.1.50',
             port: 3629,
             enabled: true
         },
         receiver: {
             name: 'Pioneer VSX-LX303',
-            ip: '192.168.1.101',      // ← MODIFIER avec l'IP de l'ampli
+            ip: '192.168.1.79',
             port: 8102,
             enabled: true
         },
         shield: {
             name: 'NVIDIA Shield TV',
-            ip: '192.168.1.102',      // ← MODIFIER avec l'IP de la Shield
+            ip: '192.168.1.80',
             port: 5555,
             enabled: true
         },
         appletv: {
             name: 'Apple TV 4K',
-            ip: '192.168.1.103',      // ← MODIFIER avec l'IP de l'Apple TV
+            ip: '192.168.1.123',
             enabled: true
         },
         ps5: {
             name: 'PlayStation 5',
-            ip: '192.168.1.104',      // ← MODIFIER avec l'IP de la PS5
+            ip: '192.168.1.91',
             enabled: true
         }
     }

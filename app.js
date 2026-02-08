@@ -9,36 +9,36 @@
 
 const DEVICES = {
     projector: {
-        name: 'Epson EH-TW9400',
+        name: 'Epson Home Cinema',
         type: 'projector',
-        ip: '192.168.1.100', // À configurer
+        ip: '192.168.1.50',
         port: 3629,
         protocol: 'escvp21'
     },
     receiver: {
         name: 'Pioneer VSX-LX303',
         type: 'receiver',
-        ip: '192.168.1.101', // À configurer
+        ip: '192.168.1.79',
         port: 8102,
         protocol: 'pioneer'
     },
     shield: {
         name: 'NVIDIA Shield TV',
         type: 'androidtv',
-        ip: '192.168.1.102', // À configurer
+        ip: '192.168.1.80',
         port: 5555,
         protocol: 'adb'
     },
     appletv: {
         name: 'Apple TV 4K',
         type: 'appletv',
-        ip: '192.168.1.103', // À configurer
+        ip: '192.168.1.123',
         protocol: 'pyatv'
     },
     ps5: {
         name: 'PlayStation 5',
         type: 'ps5',
-        ip: '192.168.1.104', // À configurer
+        ip: '192.168.1.91',
         protocol: 'ps5waker'
     }
 };

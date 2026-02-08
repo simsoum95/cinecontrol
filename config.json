@@ -1,0 +1,49 @@
+{
+  "// CONFIGURATION CINECONTROL": "Modifie les adresses IP ci-dessous",
+  
+  "// Pour trouver les IP": "Va dans les paramètres réseau de chaque appareil",
+
+  "projecteur": {
+    "nom": "Epson EH-TW9400",
+    "ip": "10.0.0.100",
+    "port": 3629,
+    "actif": true
+  },
+
+  "ampli": {
+    "nom": "Pioneer VSX-LX303",
+    "ip": "10.0.0.101",
+    "port": 8102,
+    "actif": true
+  },
+
+  "shield": {
+    "nom": "NVIDIA Shield TV",
+    "ip": "10.0.0.102",
+    "port": 5555,
+    "actif": true
+  },
+
+  "appletv": {
+    "nom": "Apple TV 4K",
+    "ip": "10.0.0.103",
+    "actif": true
+  },
+
+  "ps5": {
+    "nom": "PlayStation 5",
+    "ip": "10.0.0.104",
+    "actif": true
+  },
+
+  "// Configuration des entrées HDMI de l'ampli": "",
+  "entrees_hdmi": {
+    "shield": "HDMI1",
+    "appletv": "HDMI2",
+    "ps5": "HDMI3"
+  },
+
+  "// Port du serveur web": "",
+  "port_serveur": 8080
+}
+
