@@ -159,10 +159,50 @@ class EpsonProjector {
         });
     }
 
+    async tryConnect(port, command) {
+        return new Promise((resolve) => {
+            const client = new net.Socket();
+            client.setTimeout(2000);
+            
+            client.connect(port, this.ip, () => {
+                console.log(`[Epson] Connecté sur port ${port} ! Envoi: ${command}`);
+                client.write(command + '\r');
+                setTimeout(() => {
+                    client.destroy();
+                    resolve({ success: true, port: port });
+                }, 500);
+            });
+            
+            client.on('error', () => {
+                client.destroy();
+                resolve({ success: false, port: port });
+            });
+            
+            client.on('timeout', () => {
+                client.destroy();
+                resolve({ success: false, port: port });
+            });
+        });
+    }
+
     async powerOn() {
-        // Essayer plusieurs commandes/ports
-        console.log(`[Epson] Tentative d'allumage...`);
-        return this.sendCommand('PWR ON');
+        console.log(`[Epson] Tentative d'allumage sur ${this.ip}...`);
+        
+        // Essayer plusieurs ports
+        const ports = [3629, 3620, 3600, 80];
+        
+        for (const port of ports) {
+            console.log(`[Epson] Essai port ${port}...`);
+            const result = await this.tryConnect(port, 'PWR ON');
+            if (result.success) {
+                console.log(`[Epson] ✅ Succès sur port ${port} !`);
+                return result;
+            }
+        }
+        
+        console.log(`[Epson] ❌ Aucun port n'a fonctionné`);
+        console.log(`[Epson] Vérifie que le contrôle réseau est activé sur le projecteur`);
+        return { success: false, error: 'Aucun port disponible' };
     }
 
     async powerOff() {
