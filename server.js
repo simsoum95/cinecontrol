@@ -382,16 +382,28 @@ class AppleTV {
 }
 
 // ============================================
-// INITIALISATION DES CONTRÔLEURS
+// FONCTIONS POUR OBTENIR LES CONTRÔLEURS AVEC IP À JOUR
 // ============================================
 
-const devices = {
-    projector: new EpsonProjector(CONFIG.devices.projector.ip, CONFIG.devices.projector.port),
-    receiver: new PioneerReceiver(CONFIG.devices.receiver.ip, CONFIG.devices.receiver.port),
-    shield: new ShieldTV(CONFIG.devices.shield.ip, CONFIG.devices.shield.port),
-    appletv: new AppleTV(CONFIG.devices.appletv.ip),
-    ps5: new PlayStation5(CONFIG.devices.ps5.ip)
-};
+function getProjector() {
+    return new EpsonProjector(CONFIG.devices.projector.ip, CONFIG.devices.projector.port);
+}
+
+function getReceiver() {
+    return new PioneerReceiver(CONFIG.devices.receiver.ip, CONFIG.devices.receiver.port);
+}
+
+function getShield() {
+    return new ShieldTV(CONFIG.devices.shield.ip, CONFIG.devices.shield.port);
+}
+
+function getAppleTV() {
+    return new AppleTV(CONFIG.devices.appletv.ip);
+}
+
+function getPS5() {
+    return new PlayStation5(CONFIG.devices.ps5.ip);
+}
 
 // ============================================
 // GESTIONNAIRE D'API
@@ -439,54 +451,64 @@ async function handleApiRequest(req, res) {
 }
 
 async function executeDeviceCommand(device, action, value) {
-    const controller = devices[device];
-    if (!controller) {
+    // Vérifier que l'IP est connue
+    const deviceConfig = CONFIG.devices[device];
+    if (!deviceConfig) {
         throw new Error(`Appareil inconnu: ${device}`);
     }
+    if (!deviceConfig.ip) {
+        throw new Error(`IP non trouvée pour ${deviceConfig.name}. Vérifiez que l'appareil est allumé et sur le réseau.`);
+    }
 
-    switch (action) {
-        // Projecteur
-        case 'power_on':
-            if (device === 'projector') return await controller.powerOn();
-            if (device === 'receiver') return await controller.powerOn();
-            break;
-        case 'power_off':
-            if (device === 'projector') return await controller.powerOff();
-            if (device === 'receiver') return await controller.powerOff();
-            break;
-            
-        // Ampli
-        case 'set_volume':
-            return await controller.setVolume(value);
-        case 'volume_up':
-            return await controller.volumeUp();
-        case 'volume_down':
-            return await controller.volumeDown();
-        case 'set_input':
-            return await controller.setInput(value);
-        case 'mute':
-            return await controller.mute();
-        case 'unmute':
-            return await controller.unmute();
-            
-        // Shield / Apple TV
-        case 'wake':
-            return await controller.wake();
-        case 'sleep':
-            return await controller.sleep();
-        case 'home':
-            return await controller.home();
-        case 'launch_app':
-            return await controller.launchApp(value);
-        case 'key':
-            return await controller.sendKey(value);
-            
-        // PS5
-        case 'standby':
-            return await controller.standby();
-            
-        default:
-            throw new Error(`Action inconnue: ${action}`);
+    console.log(`[${deviceConfig.name}] Envoi commande ${action} vers ${deviceConfig.ip}`);
+
+    try {
+        switch (device) {
+            case 'projector': {
+                const controller = getProjector();
+                if (action === 'power_on') return await controller.powerOn();
+                if (action === 'power_off') return await controller.powerOff();
+                break;
+            }
+            case 'receiver': {
+                const controller = getReceiver();
+                if (action === 'power_on') return await controller.powerOn();
+                if (action === 'power_off') return await controller.powerOff();
+                if (action === 'set_volume') return await controller.setVolume(value);
+                if (action === 'volume_up') return await controller.volumeUp();
+                if (action === 'volume_down') return await controller.volumeDown();
+                if (action === 'set_input') return await controller.setInput(value);
+                if (action === 'mute') return await controller.mute();
+                if (action === 'unmute') return await controller.unmute();
+                break;
+            }
+            case 'shield': {
+                const controller = getShield();
+                if (action === 'wake') return await controller.wake();
+                if (action === 'sleep') return await controller.sleep();
+                if (action === 'home') return await controller.home();
+                if (action === 'launch_app') return await controller.launchApp(value);
+                if (action === 'key') return await controller.sendKey(value);
+                break;
+            }
+            case 'appletv': {
+                const controller = getAppleTV();
+                if (action === 'wake') return await controller.wake();
+                if (action === 'sleep') return await controller.sleep();
+                if (action === 'launch_app') return await controller.launchApp(value);
+                break;
+            }
+            case 'ps5': {
+                const controller = getPS5();
+                if (action === 'wake') return await controller.wake();
+                if (action === 'standby') return await controller.standby();
+                break;
+            }
+        }
+        throw new Error(`Action inconnue: ${action} pour ${device}`);
+    } catch (error) {
+        console.error(`[${deviceConfig.name}] Erreur: ${error.message}`);
+        throw error;
     }
 }
 
