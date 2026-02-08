@@ -17,37 +17,101 @@ const CONFIG = {
     server: {
         port: 8080
     },
+    // Configuration par adresse MAC (ne change jamais!)
     devices: {
         projector: {
             name: 'Epson Home Cinema',
-            ip: '192.168.1.50',
+            mac: '38:1a:52:ff:ef:79',
+            ip: null,  // Sera découvert automatiquement
             port: 3629,
             enabled: true
         },
         receiver: {
             name: 'Pioneer VSX-LX303',
-            ip: '192.168.1.79',
+            mac: '00:09:b0:ed:22:79',
+            ip: null,
             port: 8102,
             enabled: true
         },
         shield: {
             name: 'NVIDIA Shield TV',
-            ip: '192.168.1.80',
+            mac: '48:b0:2d:b2:d7:b3',
+            ip: null,
             port: 5555,
             enabled: true
         },
         appletv: {
             name: 'Apple TV 4K',
-            ip: '192.168.1.123',
+            mac: '48:e1:5c:78:d8:90',
+            ip: null,
             enabled: true
         },
         ps5: {
             name: 'PlayStation 5',
-            ip: '192.168.1.91',
+            mac: '00:e4:21:66:58:3b',
+            ip: null,
             enabled: true
         }
     }
 };
+
+// ============================================
+// DÉCOUVERTE AUTOMATIQUE DES APPAREILS PAR MAC
+// ============================================
+
+async function discoverDevices() {
+    console.log('\n🔍 Recherche des appareils sur le réseau...\n');
+    
+    const { exec } = require('child_process');
+    
+    return new Promise((resolve) => {
+        // Exécuter arp -a pour obtenir la table ARP
+        exec('arp -a', (error, stdout, stderr) => {
+            if (error) {
+                console.error('Erreur lors du scan:', error);
+                resolve(false);
+                return;
+            }
+            
+            const lines = stdout.split('\n');
+            let foundCount = 0;
+            
+            for (const line of lines) {
+                // Parser chaque ligne pour extraire IP et MAC
+                // Format Windows: "192.168.1.50     38-1a-52-ff-ef-79     dynamique"
+                const match = line.match(/(\d+\.\d+\.\d+\.\d+)\s+([0-9a-f-]+)/i);
+                
+                if (match) {
+                    const ip = match[1];
+                    const mac = match[2].toLowerCase().replace(/-/g, ':');
+                    
+                    // Chercher si cette MAC correspond à un de nos appareils
+                    for (const [key, device] of Object.entries(CONFIG.devices)) {
+                        if (device.mac && device.mac.toLowerCase() === mac) {
+                            device.ip = ip;
+                            console.log(`   ✅ ${device.name} trouvé: ${ip}`);
+                            foundCount++;
+                        }
+                    }
+                }
+            }
+            
+            console.log(`\n📡 ${foundCount}/${Object.keys(CONFIG.devices).length} appareils trouvés\n`);
+            
+            // Afficher les appareils non trouvés
+            for (const [key, device] of Object.entries(CONFIG.devices)) {
+                if (!device.ip) {
+                    console.log(`   ⚠️  ${device.name} non trouvé (MAC: ${device.mac})`);
+                }
+            }
+            
+            resolve(true);
+        });
+    });
+}
+
+// Rafraîchir les IP toutes les 5 minutes
+setInterval(discoverDevices, 5 * 60 * 1000);
 
 // ============================================
 // CONTRÔLEUR PROJECTEUR EPSON (ESC/VP21)
@@ -483,7 +547,7 @@ const server = http.createServer(async (req, res) => {
     });
 });
 
-server.listen(CONFIG.server.port, '0.0.0.0', () => {
+server.listen(CONFIG.server.port, '0.0.0.0', async () => {
     console.log('');
     console.log('╔════════════════════════════════════════════════════════════╗');
     console.log('║                                                            ║');
@@ -494,14 +558,18 @@ server.listen(CONFIG.server.port, '0.0.0.0', () => {
     console.log('║   📱 Ouvre cette adresse sur ton téléphone !              ║');
     console.log('║                                                            ║');
     console.log('╚════════════════════════════════════════════════════════════╝');
+    
+    // Découverte automatique des appareils par leur adresse MAC
+    await discoverDevices();
+    
     console.log('');
     console.log('📡 Appareils configurés:');
     Object.entries(CONFIG.devices).forEach(([key, device]) => {
-        const status = device.enabled ? '✅' : '❌';
-        console.log(`   ${status} ${device.name} (${device.ip})`);
+        const status = device.ip ? '✅' : '❌';
+        console.log(`   ${status} ${device.name} → ${device.ip || 'Non trouvé'} (MAC: ${device.mac})`);
     });
     console.log('');
-    console.log('💡 Pour configurer les IP, modifie le fichier server.js');
+    console.log('🔄 Les IP sont rafraîchies automatiquement toutes les 5 minutes');
     console.log('');
 });
 
