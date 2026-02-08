@@ -52,7 +52,6 @@ const SCENARIOS = {
         name: 'Netflix',
         description: 'Lancement de Netflix',
         steps: [
-            { device: 'projector', action: 'power_on', label: 'Allumage projecteur' },
             { device: 'receiver', action: 'power_on', label: 'Allumage ampli' },
             { device: 'receiver', action: 'set_input', value: 'HDMI1', label: 'Sélection entrée Shield' },
             { device: 'shield', action: 'wake', label: 'Réveil Shield TV' },
@@ -64,7 +63,6 @@ const SCENARIOS = {
         name: 'Plex',
         description: 'Lancement de Plex',
         steps: [
-            { device: 'projector', action: 'power_on', label: 'Allumage projecteur' },
             { device: 'receiver', action: 'power_on', label: 'Allumage ampli' },
             { device: 'receiver', action: 'set_input', value: 'HDMI1', label: 'Sélection entrée Shield' },
             { device: 'shield', action: 'wake', label: 'Réveil Shield TV' },
@@ -76,7 +74,6 @@ const SCENARIOS = {
         name: 'FreeTV',
         description: 'TV en direct via FreeTV',
         steps: [
-            { device: 'projector', action: 'power_on', label: 'Allumage projecteur' },
             { device: 'receiver', action: 'power_on', label: 'Allumage ampli' },
             { device: 'receiver', action: 'set_input', value: 'HDMI1', label: 'Sélection entrée Shield' },
             { device: 'shield', action: 'wake', label: 'Réveil Shield TV' },
@@ -88,11 +85,9 @@ const SCENARIOS = {
         name: 'Apple TV+',
         description: 'Streaming Apple',
         steps: [
-            { device: 'projector', action: 'power_on', label: 'Allumage projecteur' },
             { device: 'receiver', action: 'power_on', label: 'Allumage ampli' },
             { device: 'receiver', action: 'set_input', value: 'HDMI2', label: 'Sélection entrée Apple TV' },
             { device: 'appletv', action: 'wake', label: 'Réveil Apple TV' },
-            { device: 'appletv', action: 'launch_app', value: 'com.apple.TVShows', label: 'Lancement Apple TV+' },
             { device: 'receiver', action: 'set_volume', value: 45, label: 'Réglage volume' }
         ]
     },
@@ -100,7 +95,6 @@ const SCENARIOS = {
         name: 'PlayStation 5',
         description: 'Mode Gaming',
         steps: [
-            { device: 'projector', action: 'power_on', label: 'Allumage projecteur' },
             { device: 'receiver', action: 'power_on', label: 'Allumage ampli' },
             { device: 'receiver', action: 'set_input', value: 'HDMI3', label: 'Sélection entrée PS5' },
             { device: 'ps5', action: 'wake', label: 'Réveil PlayStation 5' },
@@ -111,7 +105,6 @@ const SCENARIOS = {
         name: 'Shield TV',
         description: 'Android TV',
         steps: [
-            { device: 'projector', action: 'power_on', label: 'Allumage projecteur' },
             { device: 'receiver', action: 'power_on', label: 'Allumage ampli' },
             { device: 'receiver', action: 'set_input', value: 'HDMI1', label: 'Sélection entrée Shield' },
             { device: 'shield', action: 'wake', label: 'Réveil Shield TV' },
@@ -126,8 +119,7 @@ const SCENARIOS = {
             { device: 'shield', action: 'sleep', label: 'Mise en veille Shield' },
             { device: 'appletv', action: 'sleep', label: 'Mise en veille Apple TV' },
             { device: 'ps5', action: 'standby', label: 'Mise en veille PS5' },
-            { device: 'receiver', action: 'power_off', label: 'Extinction ampli' },
-            { device: 'projector', action: 'power_off', label: 'Extinction projecteur' }
+            { device: 'receiver', action: 'power_off', label: 'Extinction ampli' }
         ]
     }
 };
