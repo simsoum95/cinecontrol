@@ -1,0 +1,22 @@
+{
+  "name": "cinecontrol",
+  "version": "1.0.0",
+  "description": "Contrôle intelligent de home cinéma - Alternative à Control4",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "home-theater",
+    "automation",
+    "epson",
+    "pioneer",
+    "nvidia-shield",
+    "apple-tv",
+    "playstation"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+

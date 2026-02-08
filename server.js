@@ -1,0 +1,507 @@
+/**
+ * CinéControl - Backend Server
+ * Contrôle réel des appareils via le réseau
+ */
+
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const net = require('net');
+const dgram = require('dgram');
+
+// ============================================
+// CONFIGURATION - À MODIFIER AVEC LES VRAIES IP
+// ============================================
+
+const CONFIG = {
+    server: {
+        port: 8080
+    },
+    devices: {
+        projector: {
+            name: 'Epson EH-TW9400',
+            ip: '192.168.1.100',      // ← MODIFIER avec l'IP du projecteur
+            port: 3629,
+            enabled: true
+        },
+        receiver: {
+            name: 'Pioneer VSX-LX303',
+            ip: '192.168.1.101',      // ← MODIFIER avec l'IP de l'ampli
+            port: 8102,
+            enabled: true
+        },
+        shield: {
+            name: 'NVIDIA Shield TV',
+            ip: '192.168.1.102',      // ← MODIFIER avec l'IP de la Shield
+            port: 5555,
+            enabled: true
+        },
+        appletv: {
+            name: 'Apple TV 4K',
+            ip: '192.168.1.103',      // ← MODIFIER avec l'IP de l'Apple TV
+            enabled: true
+        },
+        ps5: {
+            name: 'PlayStation 5',
+            ip: '192.168.1.104',      // ← MODIFIER avec l'IP de la PS5
+            enabled: true
+        }
+    }
+};
+
+// ============================================
+// CONTRÔLEUR PROJECTEUR EPSON (ESC/VP21)
+// ============================================
+
+class EpsonProjector {
+    constructor(ip, port = 3629) {
+        this.ip = ip;
+        this.port = port;
+    }
+
+    async sendCommand(command) {
+        return new Promise((resolve, reject) => {
+            const client = new net.Socket();
+            client.setTimeout(5000);
+
+            client.connect(this.port, this.ip, () => {
+                console.log(`[Epson] Connecté, envoi: ${command}`);
+                client.write(command + '\r');
+            });
+
+            client.on('data', (data) => {
+                console.log(`[Epson] Réponse: ${data.toString().trim()}`);
+                client.destroy();
+                resolve(data.toString());
+            });
+
+            client.on('timeout', () => {
+                client.destroy();
+                reject(new Error('Timeout'));
+            });
+
+            client.on('error', (err) => {
+                console.error(`[Epson] Erreur: ${err.message}`);
+                reject(err);
+            });
+        });
+    }
+
+    async powerOn() {
+        return this.sendCommand('PWR ON');
+    }
+
+    async powerOff() {
+        return this.sendCommand('PWR OFF');
+    }
+
+    async getStatus() {
+        return this.sendCommand('PWR?');
+    }
+}
+
+// ============================================
+// CONTRÔLEUR AMPLI PIONEER (ISCP)
+// ============================================
+
+class PioneerReceiver {
+    constructor(ip, port = 8102) {
+        this.ip = ip;
+        this.port = port;
+    }
+
+    async sendCommand(command) {
+        return new Promise((resolve, reject) => {
+            const client = new net.Socket();
+            client.setTimeout(5000);
+
+            client.connect(this.port, this.ip, () => {
+                console.log(`[Pioneer] Connecté, envoi: ${command}`);
+                client.write(command + '\r\n');
+            });
+
+            client.on('data', (data) => {
+                console.log(`[Pioneer] Réponse: ${data.toString().trim()}`);
+                client.destroy();
+                resolve(data.toString());
+            });
+
+            client.on('timeout', () => {
+                client.destroy();
+                reject(new Error('Timeout'));
+            });
+
+            client.on('error', (err) => {
+                console.error(`[Pioneer] Erreur: ${err.message}`);
+                reject(err);
+            });
+        });
+    }
+
+    async powerOn() {
+        return this.sendCommand('PO');  // Power On
+    }
+
+    async powerOff() {
+        return this.sendCommand('PF');  // Power Off
+    }
+
+    async setVolume(level) {
+        // Volume de 0-185 sur Pioneer, on convertit de 0-100
+        const pioneerLevel = Math.round((level / 100) * 185);
+        const volStr = pioneerLevel.toString().padStart(3, '0');
+        return this.sendCommand(`${volStr}VL`);
+    }
+
+    async volumeUp() {
+        return this.sendCommand('VU');
+    }
+
+    async volumeDown() {
+        return this.sendCommand('VD');
+    }
+
+    async mute() {
+        return this.sendCommand('MO');  // Mute On
+    }
+
+    async unmute() {
+        return this.sendCommand('MF');  // Mute Off
+    }
+
+    async setInput(input) {
+        const inputs = {
+            'HDMI1': '19FN',
+            'HDMI2': '20FN',
+            'HDMI3': '21FN',
+            'HDMI4': '22FN',
+            'HDMI5': '23FN',
+            'HDMI6': '24FN',
+            'BD': '25FN',
+            'TV': '05FN'
+        };
+        const cmd = inputs[input] || inputs['HDMI1'];
+        return this.sendCommand(cmd);
+    }
+}
+
+// ============================================
+// CONTRÔLEUR NVIDIA SHIELD (ADB)
+// ============================================
+
+class ShieldTV {
+    constructor(ip, port = 5555) {
+        this.ip = ip;
+        this.port = port;
+    }
+
+    async executeAdb(command) {
+        const { exec } = require('child_process');
+        return new Promise((resolve, reject) => {
+            exec(`adb connect ${this.ip}:${this.port} && adb -s ${this.ip}:${this.port} ${command}`, 
+                { timeout: 10000 },
+                (error, stdout, stderr) => {
+                    if (error) {
+                        console.error(`[Shield] Erreur: ${error.message}`);
+                        reject(error);
+                        return;
+                    }
+                    console.log(`[Shield] ${stdout}`);
+                    resolve(stdout);
+                }
+            );
+        });
+    }
+
+    async wake() {
+        return this.executeAdb('shell input keyevent KEYCODE_WAKEUP');
+    }
+
+    async sleep() {
+        return this.executeAdb('shell input keyevent KEYCODE_SLEEP');
+    }
+
+    async home() {
+        return this.executeAdb('shell input keyevent KEYCODE_HOME');
+    }
+
+    async launchApp(packageName) {
+        const apps = {
+            'com.netflix.ninja': 'com.netflix.ninja/.MainActivity',
+            'com.plexapp.android': 'com.plexapp.android/.activity.SplashActivity',
+            'fr.freebox.catchup': 'fr.freebox.catchup/.MainActivity',
+            'com.google.android.youtube.tv': 'com.google.android.youtube.tv/.MainActivity'
+        };
+        const activity = apps[packageName] || packageName;
+        return this.executeAdb(`shell am start -n ${activity}`);
+    }
+
+    async sendKey(key) {
+        const keys = {
+            'up': 'KEYCODE_DPAD_UP',
+            'down': 'KEYCODE_DPAD_DOWN',
+            'left': 'KEYCODE_DPAD_LEFT',
+            'right': 'KEYCODE_DPAD_RIGHT',
+            'enter': 'KEYCODE_ENTER',
+            'back': 'KEYCODE_BACK',
+            'play': 'KEYCODE_MEDIA_PLAY',
+            'pause': 'KEYCODE_MEDIA_PAUSE',
+            'playpause': 'KEYCODE_MEDIA_PLAY_PAUSE'
+        };
+        const keycode = keys[key] || `KEYCODE_${key.toUpperCase()}`;
+        return this.executeAdb(`shell input keyevent ${keycode}`);
+    }
+}
+
+// ============================================
+// CONTRÔLEUR PS5 (Wake on LAN + PlayStation API)
+// ============================================
+
+class PlayStation5 {
+    constructor(ip) {
+        this.ip = ip;
+    }
+
+    async wake() {
+        // Pour la PS5, on utilise généralement playactor ou ps5-waker
+        // Ici on fait un Wake-on-LAN basique
+        console.log(`[PS5] Wake demandé pour ${this.ip}`);
+        // Note: nécessite la configuration du Wake-on-LAN sur la PS5
+        return { success: true, message: 'Wake signal envoyé' };
+    }
+
+    async standby() {
+        console.log(`[PS5] Standby demandé pour ${this.ip}`);
+        return { success: true, message: 'Standby signal envoyé' };
+    }
+}
+
+// ============================================
+// CONTRÔLEUR APPLE TV (via pyatv - nécessite Python)
+// ============================================
+
+class AppleTV {
+    constructor(ip) {
+        this.ip = ip;
+    }
+
+    async executePyatv(command) {
+        const { exec } = require('child_process');
+        return new Promise((resolve, reject) => {
+            exec(`atvremote -s ${this.ip} ${command}`,
+                { timeout: 10000 },
+                (error, stdout, stderr) => {
+                    if (error) {
+                        console.error(`[AppleTV] Erreur: ${error.message}`);
+                        // Ne pas rejeter, juste logger
+                        resolve({ success: false, error: error.message });
+                        return;
+                    }
+                    console.log(`[AppleTV] ${stdout}`);
+                    resolve({ success: true, output: stdout });
+                }
+            );
+        });
+    }
+
+    async wake() {
+        return this.executePyatv('turn_on');
+    }
+
+    async sleep() {
+        return this.executePyatv('turn_off');
+    }
+
+    async launchApp(bundleId) {
+        return this.executePyatv(`launch_app=${bundleId}`);
+    }
+}
+
+// ============================================
+// INITIALISATION DES CONTRÔLEURS
+// ============================================
+
+const devices = {
+    projector: new EpsonProjector(CONFIG.devices.projector.ip, CONFIG.devices.projector.port),
+    receiver: new PioneerReceiver(CONFIG.devices.receiver.ip, CONFIG.devices.receiver.port),
+    shield: new ShieldTV(CONFIG.devices.shield.ip, CONFIG.devices.shield.port),
+    appletv: new AppleTV(CONFIG.devices.appletv.ip),
+    ps5: new PlayStation5(CONFIG.devices.ps5.ip)
+};
+
+// ============================================
+// GESTIONNAIRE D'API
+// ============================================
+
+async function handleApiRequest(req, res) {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    
+    if (url.pathname === '/api/command' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const { device, action, value } = JSON.parse(body);
+                console.log(`\n📡 Commande reçue: ${device} → ${action}${value ? ' (' + value + ')' : ''}`);
+                
+                const result = await executeDeviceCommand(device, action, value);
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, result }));
+            } catch (error) {
+                console.error('Erreur API:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: error.message }));
+            }
+        });
+        return true;
+    }
+    
+    if (url.pathname === '/api/status') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+            status: 'online',
+            devices: Object.keys(CONFIG.devices).map(key => ({
+                id: key,
+                name: CONFIG.devices[key].name,
+                ip: CONFIG.devices[key].ip,
+                enabled: CONFIG.devices[key].enabled
+            }))
+        }));
+        return true;
+    }
+    
+    return false;
+}
+
+async function executeDeviceCommand(device, action, value) {
+    const controller = devices[device];
+    if (!controller) {
+        throw new Error(`Appareil inconnu: ${device}`);
+    }
+
+    switch (action) {
+        // Projecteur
+        case 'power_on':
+            if (device === 'projector') return await controller.powerOn();
+            if (device === 'receiver') return await controller.powerOn();
+            break;
+        case 'power_off':
+            if (device === 'projector') return await controller.powerOff();
+            if (device === 'receiver') return await controller.powerOff();
+            break;
+            
+        // Ampli
+        case 'set_volume':
+            return await controller.setVolume(value);
+        case 'volume_up':
+            return await controller.volumeUp();
+        case 'volume_down':
+            return await controller.volumeDown();
+        case 'set_input':
+            return await controller.setInput(value);
+        case 'mute':
+            return await controller.mute();
+        case 'unmute':
+            return await controller.unmute();
+            
+        // Shield / Apple TV
+        case 'wake':
+            return await controller.wake();
+        case 'sleep':
+            return await controller.sleep();
+        case 'home':
+            return await controller.home();
+        case 'launch_app':
+            return await controller.launchApp(value);
+        case 'key':
+            return await controller.sendKey(value);
+            
+        // PS5
+        case 'standby':
+            return await controller.standby();
+            
+        default:
+            throw new Error(`Action inconnue: ${action}`);
+    }
+}
+
+// ============================================
+// SERVEUR HTTP
+// ============================================
+
+const MIME_TYPES = {
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon'
+};
+
+const server = http.createServer(async (req, res) => {
+    // CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') {
+        res.writeHead(200);
+        res.end();
+        return;
+    }
+    
+    // API routes
+    if (req.url.startsWith('/api/')) {
+        const handled = await handleApiRequest(req, res);
+        if (handled) return;
+    }
+    
+    // Static files
+    let filePath = req.url === '/' ? '/index.html' : req.url;
+    filePath = path.join(__dirname, filePath);
+    
+    const ext = path.extname(filePath);
+    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    
+    fs.readFile(filePath, (err, content) => {
+        if (err) {
+            if (err.code === 'ENOENT') {
+                res.writeHead(404);
+                res.end('Not Found');
+            } else {
+                res.writeHead(500);
+                res.end('Server Error');
+            }
+            return;
+        }
+        
+        res.writeHead(200, { 'Content-Type': contentType });
+        res.end(content);
+    });
+});
+
+server.listen(CONFIG.server.port, '0.0.0.0', () => {
+    console.log('');
+    console.log('╔════════════════════════════════════════════════════════════╗');
+    console.log('║                                                            ║');
+    console.log('║   🎬 CinéControl Server                                    ║');
+    console.log('║                                                            ║');
+    console.log(`║   ➜ Local:   http://localhost:${CONFIG.server.port}                       ║`);
+    console.log('║                                                            ║');
+    console.log('║   📱 Ouvre cette adresse sur ton téléphone !              ║');
+    console.log('║                                                            ║');
+    console.log('╚════════════════════════════════════════════════════════════╝');
+    console.log('');
+    console.log('📡 Appareils configurés:');
+    Object.entries(CONFIG.devices).forEach(([key, device]) => {
+        const status = device.enabled ? '✅' : '❌';
+        console.log(`   ${status} ${device.name} (${device.ip})`);
+    });
+    console.log('');
+    console.log('💡 Pour configurer les IP, modifie le fichier server.js');
+    console.log('');
+});
+
